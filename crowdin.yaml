@@ -1,0 +1,8 @@
+api_key_env: CROWDIN_KEY
+project_identifier: exohood-send-crypto-sm-pages
+base_path: .
+preserve_hierarchy: false
+files:
+  - source: /translations/en.json
+    translation: /translations/%two_letters_code%.%file_extension%
+    update_option: 'update_as_unapproved'
