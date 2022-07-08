@@ -1,0 +1,77 @@
+defaults: &defaults
+  working_directory: ~/exohood-send-crypto-sm-pages
+  docker:
+    - image: circleci/node:latest
+version: 2
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - persist_to_workspace:
+          root: .
+          paths:
+            - '*'
+  push-and-pull-translations:
+    working_directory: ~/exohood-send-crypto-sm-pages
+    docker:
+      - image: circleci/java:latest
+    steps:
+      - attach_workspace:
+          at: ~/exohood-send-crypto-sm-pages
+      - run:
+          name: Download CrowdIn CLI
+          command: |
+            wget https://artifacts.crowdin.com/repo/deb/crowdin.deb -O crowdin.deb
+            sudo dpkg -i crowdin.deb
+      - run:
+          name: Push translations
+          command: crowdin push -b ${CIRCLE_BRANCH}
+      - run:
+          name: Pull translations
+          command: crowdin pull -b ${CIRCLE_BRANCH}
+      - persist_to_workspace:
+          root: .
+          paths:
+            - '*'
+  release:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/exohood-send-crypto-sm-pages
+      - run:
+          name: Setup npm token
+          command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN_PUBLISH" >> ~/.npmrc
+      - run:
+          name: Build
+          command: npm run build
+      - run:
+          name: Release to GitHub
+          command: |
+            mkdir ~/.ssh
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            git config --global user.email "circleci@exohood.com"
+            git config --global user.name "CircleCI"
+            npm run release-to-github
+      - run:
+          name: Publish on npm
+          command: npm publish --access=public
+
+workflows:
+  version: 2
+  build-and-release:
+    jobs:
+      - build
+      - push-and-pull-translations:
+          requires:
+            - build
+      - release:
+          context: frontend-publish
+          requires:
+            - push-and-pull-translations
+          filters:
+            branches:
+              only: master
